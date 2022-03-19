@@ -1,0 +1,59 @@
+<robot name="double-pendulum" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:property name="depth" value="0.2"/>
+  <xacro:property name="pole_radius" value="${depth / 8}"/>
+  <xacro:property name="link_length" value="0.8"/>
+  <xacro:property name="cart_width" value="0.4"/>
+  <xacro:property name="cart_height" value="${cart_width / 2}"/>
+  <xacro:property name="elbow_radius" value="${depth / 4}"/>
+  <xacro:property name="elbow_depth" value="${pole_radius * 6}"/>
+
+  <xacro:macro name="link" params="name length radius">
+    <link name="${name}">
+      <visual>
+        <geometry>
+          <cylinder length="${length}" radius="${radius}"/>
+        </geometry>
+      </visual>
+    </link>
+  </xacro:macro>
+
+  <link name="cart">
+    <visual>
+      <geometry>
+        <box size="${cart_width} ${depth} ${cart_height}"/>
+      </geometry>
+    </visual>
+  </link>
+
+  <xacro:link name="link1" length="${link_length}" radius="${pole_radius}"/>
+  <xacro:link name="link2" length="${link_length}" radius="${pole_radius}"/>
+
+  <link name="elbow">
+    <visual>
+      <geometry>
+        <cylinder length="${elbow_depth}" radius="${elbow_radius}"/>
+      </geometry>
+    </visual>
+  </link>
+
+  <joint name="cart_to_link" type="continuous">
+    <axis xyz="0 1 0"/>
+    <parent link="cart"/>
+    <child link="link1"/>
+    <origin xyz="0 ${(depth + 2*pole_radius) / 2} ${link_length / 2}"/>
+  </joint>
+
+  <joint name="link_to_elbow" type="fixed">
+    <origin rpy="${pi / 2} 0 0" xyz="0 ${elbow_depth / 3} ${(link_length + elbow_radius) / 2}"/>
+    <parent link="link1"/>
+    <child link="elbow"/>
+  </joint>
+  
+  <joint name="elbow_to_link" type="continuous">
+    <axis xyz="0 1 0"/>
+    <!--<origin rpy="-${pi / 2} 0 0" xyz="0 0 ${link_length / 2}"/>-->
+    <origin rpy="${pi/2} 0 0" xyz="0 ${link_length / 2} ${-(elbow_depth/3)}"/>
+    <parent link="elbow"/>
+    <child link="link2"/>
+  </joint>
+</robot>
