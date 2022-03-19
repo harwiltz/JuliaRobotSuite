@@ -1,6 +1,8 @@
-export AbstractRobotEnv, LazyValue, BaseMeshCatVisualizer, acquire!
+export AbstractRobotEnv, LazyValue, BaseMeshCatVisualizer, BaseMechanismVisualizer, acquire!
 
+using RigidBodyDynamics
 using MeshCat
+using MeshCatMechanisms
 
 abstract type AbstractRobotEnv <: AbstractEnv end
 
@@ -24,4 +26,14 @@ function BaseMeshCatVisualizer(window = true)
         open(vis)
     end
     vis
+end
+
+function BaseMechanismVisualizer(mechanism::Mechanism, urdf::String; window = true)
+    () -> begin
+        vis = Visualizer()
+        if window
+            open(vis)
+        end
+        MechanismVisualizer(mechanism, URDFVisuals(urdf), vis)
+    end
 end
