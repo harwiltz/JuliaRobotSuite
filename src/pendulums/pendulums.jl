@@ -1,1 +1,3 @@
-include("double_pendulum.jl")
+include("./common.jl")
+include("./single.jl")
+include("./single_envs.jl")
