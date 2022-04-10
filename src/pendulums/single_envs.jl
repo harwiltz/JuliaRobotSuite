@@ -11,7 +11,7 @@ using Plots
 
 import ReinforcementLearningBase as RLBase
 
-const τ = 1e-4
+const τ = 5e-3
 
 abstract type AbstractStochasticCartPoleEnv <: RLBase.AbstractEnv end
 abstract type BalanceStochasticCartPoleEnv <: AbstractStochasticCartPoleEnv end
@@ -40,6 +40,9 @@ mutable struct StochasticCartPoleEnv{F <: Real, A} <: BalanceStochasticCartPoleE
     Nₐ::A
     reward::F
     is_terminated::Bool
+    T::F
+    t::F
+    dt::F
 end
 
 pendulum(env::StochasticCartPoleEnv) = env.pendulum
@@ -56,6 +59,8 @@ RLBase.is_terminated(env::StochasticCartPoleEnv) = env.is_terminated
 function RLBase.reset!(env::StochasticCartPoleEnv{F, A}) where {F <: Real, A}
     env.reward = 0
     env.is_terminated = false
+    env.t = F(0)
+    env.dt = F(0)
     env.pendulum = InvertedPendulum(CartPoleConfiguration(F = F))
 end
 
@@ -63,9 +68,10 @@ function StochasticCartPoleEnv(
     F = Float32;
     λ = 4,
     Nₐ = 2,
+    T = 10
 )
     pendulum = InvertedPendulum(CartPoleConfiguration(F = F))
-    StochasticCartPoleEnv(pendulum, F(λ), Nₐ, F(0), false)
+    StochasticCartPoleEnv(pendulum, F(λ), Nₐ, F(0), false, F(T), F(0), F(0))
 end
 
 function (env::StochasticCartPoleEnv{F, A})(a::Int) where {F, A <: Int}
@@ -77,15 +83,21 @@ function (env::BalanceStochasticCartPoleEnv)(a::F) where F <: Real
     cp = pendulum(env)
     λ = poisson_λ(env)
     μ, σ = dynamics(cp, a)
-    T = F(1 + rand(Poisson(λ))) * F(τ)
+    T = F(τ) #F(1 + rand(Poisson(λ))) * F(τ)
+    env.dt = T
     prob = SDEProblem(μ, σ, state_vec(cp), (0.0, T))
     ts, xs = solve(prob, EM(), dt=τ)
     reward = F(0)
     done = false
+    alive_x = ClosedInterval{F}(-3..3)
+    alive_sinθ = ClosedInterval{F}(-0.5..0.5)
     for xᵢ in eachcol(xs)
+        env.t = env.t + F(τ)
         rᵢ = 1
         reward = reward + F(τ * rᵢ)
-        done = !(xᵢ ∈ state_space(env))
+        s = InvertedPendulumState(xᵢ...)
+        alive = (s.x ∈ alive_x) && (sin(s.θ) ∈ alive_sinθ)
+        done = !alive || (env.t >= env.T)
         if done
             break
         end

@@ -78,7 +78,8 @@ function μ_inverted_pendulum(du, u, p, t)
 end
 
 function σ_inverted_pendulum(du, u, p, t)
-    du = (2f0 - exp(abs(u[1]))) .* [1, 1/(2π), 1, 1/√(2π)]
+    #du = (2f0 - exp(abs(u[1]))) .* [1, 1/(2π), 1, 1/√(2π)]
+    du = [1f0, Float32(1/(2π)), 1f0, 1f0]
 end
 
 function μ_dynamics(cartpole::InvertedPendulum{F}, a::F) where F <: Real
