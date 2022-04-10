@@ -58,7 +58,7 @@ function InvertedPendulum(state::InvertedPendulumState{F};
                           b = F(0.1),
                           l = F(1),
                           I = F(0.006),
-                          f = F(1)) where F <: Real
+                          f = F(2)) where F <: Real
     InvertedPendulum(state, M, m, b, l, I, f)
 end
 

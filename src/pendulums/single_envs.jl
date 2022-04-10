@@ -1,4 +1,4 @@
-export AbstractStochasticCartPoleEnv, BalanceStochasticCartPoleEnv, SwingupStochasticCartPoleEnv
+export AbstractStochasticCartPoleEnv, CartPoleTask, CartPoleBalance, CartPoleSwingup
 
 export StochasticCartPoleEnv
 
@@ -14,11 +14,18 @@ import ReinforcementLearningBase as RLBase
 const τ = 5e-3
 
 abstract type AbstractStochasticCartPoleEnv <: RLBase.AbstractEnv end
-abstract type BalanceStochasticCartPoleEnv <: AbstractStochasticCartPoleEnv end
-abstract type SwingupStochasticCartPoleEnv <: AbstractStochasticCartPoleEnv end
+
+abstract type CartPoleTask end
+struct CartPoleBalance <: CartPoleTask end
+struct CartPoleSwingup <: CartPoleTask end
+
+const CARTPOLE_BALANCE = CartPoleBalance()
+const CARTPOLE_SWINGUP = CartPoleSwingup()
 
 pendulum(env::AbstractStochasticCartPoleEnv) = nothing
 poisson_λ(env::AbstractStochasticCartPoleEnv) = nothing
+cur_time(env::AbstractStochasticCartPoleEnv) = nothing
+max_time(env::AbstractStochasticCartPoleEnv) = nothing
 update_state!(env::AbstractStochasticCartPoleEnv, state::InvertedPendulumState) = nothing
 
 plot(env::AbstractStochasticCartPoleEnv) = plot(pendulum(env))
@@ -34,7 +41,7 @@ RLBase.is_terminated(env::AbstractStochasticCartPoleEnv) = nothing
 RLBase.state(env::AbstractStochasticCartPoleEnv) = state_vec(pendulum(env))
 RLBase.reset!(env::AbstractStochasticCartPoleEnv) = nothing
 
-mutable struct StochasticCartPoleEnv{F <: Real, A} <: BalanceStochasticCartPoleEnv
+mutable struct StochasticCartPoleEnv{Ta <: CartPoleTask, F <: Real, A} <: AbstractStochasticCartPoleEnv
     pendulum::InvertedPendulum{F}
     λ::F
     Nₐ::A
@@ -47,39 +54,62 @@ end
 
 pendulum(env::StochasticCartPoleEnv) = env.pendulum
 poisson_λ(env::StochasticCartPoleEnv) = env.λ
+cur_time(env::StochasticCartPoleEnv) = env.t
+max_time(env::StochasticCartPoleEnv) = env.T
 
-function update_state!(env::StochasticCartPoleEnv{F, A}, state::InvertedPendulumState{F}) where {F <: Real, A}
+function update_state!(
+    env::StochasticCartPoleEnv{Ta,F,A},
+    state::InvertedPendulumState{F}
+) where {Ta,F<:Real,A}
     env.pendulum.state = state
 end
 
-RLBase.action_space(env::StochasticCartPoleEnv{F, A}) where {F, A <: Nothing} = ClosedInterval{F}(-1, 1)
-RLBase.action_space(env::StochasticCartPoleEnv{F, A}) where {F, A <: Int} = Base.OneTo(env.Nₐ)
+RLBase.action_space(env::StochasticCartPoleEnv{Ta,F,A}) where {Ta,F,A<:Nothing} = ClosedInterval{F}(-1, 1)
+RLBase.action_space(env::StochasticCartPoleEnv{Ta,F,A}) where {Ta,F,A<:Int} = Base.OneTo(env.Nₐ)
 RLBase.reward(env::StochasticCartPoleEnv) = env.reward
 RLBase.is_terminated(env::StochasticCartPoleEnv) = env.is_terminated
-function RLBase.reset!(env::StochasticCartPoleEnv{F, A}) where {F <: Real, A}
+
+reset_config(env::StochasticCartPoleEnv{Ta,F,A}) where {Ta<:CartPoleBalance,F,A} =
+    InvertedPendulum(CartPoleConfiguration(F = F))
+
+reset_config(env::StochasticCartPoleEnv{Ta,F,A}) where {Ta<:CartPoleSwingup,F,A} =
+    InvertedPendulum(SwingupConfiguration(F = F))
+
+function RLBase.reset!(env::StochasticCartPoleEnv{Ta,F,A}) where {Ta,F<:Real,A}
     env.reward = 0
     env.is_terminated = false
     env.t = F(0)
     env.dt = F(0)
-    env.pendulum = InvertedPendulum(CartPoleConfiguration(F = F))
+    env.pendulum = reset_config(env)
 end
 
 function StochasticCartPoleEnv(
-    F = Float32;
+    task::Ta = CARTPOLE_BALANCE;
+    F = Float32,
     λ = 4,
     Nₐ = 2,
     T = 10
-)
+) where Ta <: CartPoleTask
     pendulum = InvertedPendulum(CartPoleConfiguration(F = F))
-    StochasticCartPoleEnv(pendulum, F(λ), Nₐ, F(0), false, F(T), F(0), F(0))
+    StochasticCartPoleEnv{Ta,F,Int}(pendulum, F(λ), Nₐ, F(0), false, F(T), F(0), F(0))
 end
 
-function (env::StochasticCartPoleEnv{F, A})(a::Int) where {F, A <: Int}
+function (env::StochasticCartPoleEnv{Ta, F, A})(a::Int) where {Ta, F, A <: Int}
     a′ = LinRange(-1, 1, env.Nₐ)[a]
     env(F(a′))
 end
 
-function (env::BalanceStochasticCartPoleEnv)(a::F) where F <: Real
+inner_reward(env::StochasticCartPoleEnv{Ta,F,N}) where {Ta<:CartPoleBalance,F,N} = F(1)
+
+function is_terminated(env::StochasticCartPoleEnv{Ta,F,N}) where {Ta<:CartPoleBalance,F,N}
+    s = pendulum(env).state
+    alive_x = ClosedInterval{F}(-3..3)
+    alive_sinθ = ClosedInterval{F}(-0.5..0.5)
+    alive = (s.x ∈ alive_x) && (sin(s.θ) ∈ alive_sinθ)
+    !alive || (cur_time(env) >= max_time(env))
+end
+
+function (env::AbstractStochasticCartPoleEnv)(a::F) where F <: Real
     cp = pendulum(env)
     λ = poisson_λ(env)
     μ, σ = dynamics(cp, a)
@@ -92,18 +122,17 @@ function (env::BalanceStochasticCartPoleEnv)(a::F) where F <: Real
     alive_x = ClosedInterval{F}(-3..3)
     alive_sinθ = ClosedInterval{F}(-0.5..0.5)
     for xᵢ in eachcol(xs)
+        s = InvertedPendulumState(xᵢ...)
+        update_state!(env, s)
         env.t = env.t + F(τ)
         rᵢ = 1
-        reward = reward + F(τ * rᵢ)
-        s = InvertedPendulumState(xᵢ...)
-        alive = (s.x ∈ alive_x) && (sin(s.θ) ∈ alive_sinθ)
-        done = !alive || (env.t >= env.T)
+        reward = reward + F(τ * inner_reward(env))
+        done = is_terminated(env)
         if done
             break
         end
     end
     env.reward = reward
     env.is_terminated = done
-    update_state!(env, InvertedPendulumState(xs[end]...))
     state(env)
 end
