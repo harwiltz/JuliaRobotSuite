@@ -3,6 +3,8 @@ using Random
 import Plots.plot
 import Plots.plot!
 import Plots.gui
+import Plots.@recipe
+import Plots.AbstractPlot
 
 export CartPoleConfiguration, CartPoleSwingupConfiguration, InvertedPendulumState, InvertedPendulum
 
@@ -58,7 +60,7 @@ function InvertedPendulum(state::InvertedPendulumState{F};
                           b = F(0.1),
                           l = F(1),
                           I = F(0.006),
-                          f = F(25)) where F <: Real
+                          f = F(250)) where F <: Real
     InvertedPendulum(state, M, m, b, l, I, f)
 end
 
@@ -102,17 +104,33 @@ dynamics(c::InvertedPendulum{F}, a::F) where F <: Real = (μ_dynamics(c, a), σ_
 state_vec(s::InvertedPendulumState) = [s.x, s.dx, s.θ, s.dθ]
 state_vec(c::InvertedPendulum) = state_vec(c.state)
 
-function plot(cartpole::InvertedPendulum)
+function plot(cartpole::InvertedPendulum, newplt = true; alpha = 1.0, kwargs...)
     l = cartpole.l
     w = PLOT_WIDTH
     h = w * (l + 0.1) / X_THRESH
-    plot(xlims=(-X_THRESH, X_THRESH), ylims=(-l -0.1, l + 0.1), legend=false, size=(w, h))#, border=:none)
+    if newplt
+        plot(xlims=(-X_THRESH, X_THRESH),
+             ylims=(-l -0.1, l + 0.1),
+             legend=false,
+             size=(w, h),
+             border=:none,
+             kwargs...)
+    else
+        plot!(xlims=(-X_THRESH, X_THRESH),
+              ylims=(-l -0.1, l + 0.1),
+              legend=false,
+              size=(w, h),
+              border=:none,
+              kwargs...)
+    end
+        
     s = cartpole.state
     # cart
     cw = 0.5f0 * l
     plot!([s.x - cw / 2, s.x - cw / 2, s.x + cw / 2, s.x + cw / 2], [-0.05, 0, 0, -0.05];
-          seriestype=:shape)
+          seriestype=:shape, fillcolor=:blue, fillalpha=alpha, linealpha=alpha, kwargs...)
     # pole
-    plot!([s.x, s.x + l * sin(s.θ)], [0, l * cos(s.θ)]; linewidth=3)
+    plot!([s.x, s.x + l * sin(s.θ)], [0, l * cos(s.θ)]; linewidth=3, linecolor=:black, linealpha=alpha, kwargs...)
 end
 
+plot!(cartpole::InvertedPendulum; kwargs...) = plot(cartpole, false; kwargs...)

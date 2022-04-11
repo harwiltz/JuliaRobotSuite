@@ -11,7 +11,7 @@ using Plots
 
 import ReinforcementLearningBase as RLBase
 
-const τ = 5e-3
+const τ = 3e-3
 
 abstract type AbstractStochasticCartPoleEnv <: RLBase.AbstractEnv end
 
@@ -28,7 +28,8 @@ cur_time(env::AbstractStochasticCartPoleEnv) = nothing
 max_time(env::AbstractStochasticCartPoleEnv) = nothing
 update_state!(env::AbstractStochasticCartPoleEnv, state::InvertedPendulumState) = nothing
 
-plot(env::AbstractStochasticCartPoleEnv) = plot(pendulum(env))
+plot(env::AbstractStochasticCartPoleEnv; kwargs...) = plot(pendulum(env); kwargs...)
+plot!(env::AbstractStochasticCartPoleEnv; kwargs...) = plot!(pendulum(env); kwargs...)
 
 RLBase.action_space(env::AbstractStochasticCartPoleEnv) = nothing
 RLBase.state_space(env::AbstractStochasticCartPoleEnv) =
@@ -88,7 +89,7 @@ function StochasticCartPoleEnv(
     F = Float32,
     λ = 4,
     Nₐ = 2,
-    T = 10
+    T = 3
 ) where Ta <: CartPoleTask
     pendulum = InvertedPendulum(CartPoleConfiguration(F = F))
     StochasticCartPoleEnv{Ta,F,Int}(pendulum, F(λ), Nₐ, F(0), false, F(T), F(0), F(0))
@@ -111,8 +112,9 @@ end
 
 function inner_reward(env::StochasticCartPoleEnv{Ta,F,N}) where {Ta<:CartPoleSwingup,F,N}
     s = pendulum(env).state
-    score_region = RLBase.Space(ClosedInterval{F}[-10..10, typemin(F)..typemax(F), -0.25..0.25, -π..π])
-    F(1) * ([s.x, s.dx, sin(s.θ), s.dθ] ∈ score_region)
+    # score_region = RLBase.Space(ClosedInterval{F}[-10..10, typemin(F)..typemax(F), 0.75..1, -π..π])
+    # F(1) * ([s.x, s.dx, cos(s.θ), s.dθ] ∈ score_region)
+    cos(s.θ)^3
 end
 
 is_terminated(env::StochasticCartPoleEnv{Ta,F,N}) where {Ta<:CartPoleSwingup,F,N} =
